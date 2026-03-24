@@ -64,3 +64,4 @@ cache/
 .DS_Store
 .AppleDouble
 .LSOverride
+uv.lock
