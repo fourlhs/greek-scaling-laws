@@ -2,12 +2,10 @@ from datasets import load_dataset
 from tokenizers import Tokenizer
 from tokenizers.models import BPE
 from tokenizers.trainers import BpeTrainer
-from tokenizers.pre_tokenizers import Whitespace # what splits text before BPE merges?
+from tokenizers.pre_tokenizers import Whitespace
 from tokenizers.normalizers import Sequence, NFD, Lowercase
 
 def get_training_corpus(dataset):
-    # yield batches of strings from greek_translation column
-    # hint: iterate in chunks of 1000 for memory efficiency
     batch_size = 1000
     for i in range(0, len(dataset), batch_size):
         yield dataset[i : i + 1000]["greek_translation"]
