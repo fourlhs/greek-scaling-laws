@@ -39,6 +39,7 @@ def build_dataset(tokenizer_path, context_length, cache_path="dataset_cache.npy"
     all_tokens = all_tokens[:n_chunks * (context_length + 1)]
     data = all_tokens.reshape(n_chunks, context_length + 1)
     
+    data = data[np.random.default_rng(42).permutation(len(data))]
     np.save(cache_path, data)
     
     split = int(0.9 * len(data))
@@ -72,7 +73,7 @@ print(f"Using device: {device}")
 
 train_data, val_data = build_dataset("greek_bpe_tokenizer.json", context_length=256)
 
-train_loader = DataLoader(TokenDataset(train_data), batch_size=32, shuffle=True)
+train_loader = DataLoader(TokenDataset(train_data), batch_size=32, shuffle=False)
 val_loader = DataLoader(TokenDataset(val_data), batch_size=32)
 
 config = GPTConfig(n_layers=args.n_layers, d_model=args.d_model, n_heads=args.n_heads)
@@ -96,7 +97,6 @@ while tokens_seen < target_tokens:
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        tokens_seen += x.numel()
         tokens_seen += x.numel()
         if tokens_seen % 10000 == 0:
             print(f"  tokens: {tokens_seen:,} / {target_tokens:,} | loss: {loss.item():.4f}")
