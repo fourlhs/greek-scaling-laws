@@ -65,3 +65,5 @@ cache/
 .AppleDouble
 .LSOverride
 uv.lock
+
+dataset_cache.npy
