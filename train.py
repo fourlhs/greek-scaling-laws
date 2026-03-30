@@ -18,7 +18,7 @@ args = parser.parse_args()
 def build_dataset(tokenizer_path, context_length, cache_path="dataset_cache.npy"):
     if os.path.exists(cache_path):
         print("Loading cached dataset...")
-        data = np.load(cache_path)
+        data = np.load(cache_path, mmap_mode='r')
         split = int(0.9 * len(data))
         return data[:split], data[split:]
     
@@ -47,12 +47,12 @@ def build_dataset(tokenizer_path, context_length, cache_path="dataset_cache.npy"
 
 class TokenDataset(Dataset):
     def __init__(self, data):
-        self.data = torch.tensor(data, dtype=torch.long)
+        self.data = data
     def __len__(self):
         return len(self.data)
     def __getitem__(self, idx):
-        x = self.data[idx, :-1]
-        y = self.data[idx, 1:]
+        x = torch.tensor(self.data[idx, :-1], dtype=torch.long)
+        y = torch.tensor(self.data[idx, 1:], dtype=torch.long)
         return x, y
 
 def evaluate(model, val_loader, device, n_batches=50):
