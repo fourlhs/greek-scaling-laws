@@ -30,6 +30,6 @@ plt.title("np.load memory usage: full vs mmap")
 for i, v in enumerate([peak_full_mb, peak_mmap_mb]):
     plt.text(i, v + 0.5, f"{v:.1f} MB", ha="center")
 plt.tight_layout()
-plt.savefig("memory_comparison.png", dpi=150)
+plt.savefig("plots/memory_comparison.png", dpi=150)
 plt.show()
-print("Saved to memory_comparison.png")
+print("Saved to plots/memory_comparison.png")
