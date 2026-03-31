@@ -83,6 +83,7 @@ optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4)
 n_params = model.count_params()
 tokens_seen = 0
 target_tokens = args.n_tokens
+training_curve = []
 
 print(f"Model: {n_params:,} params, training for {target_tokens:,} tokens")
 
@@ -99,12 +100,21 @@ while tokens_seen < target_tokens:
         optimizer.step()
         tokens_seen += x.numel()
         if tokens_seen % 10000 == 0:
+            training_curve.append({"tokens_seen": tokens_seen, "loss": loss.item()})
             print(f"  tokens: {tokens_seen:,} / {target_tokens:,} | loss: {loss.item():.4f}")
 
 val_loss = evaluate(model, val_loader, device)
 n_flops = 6 * n_params * args.n_tokens
 
 print(f"val_loss={val_loss:.4f}")
+
+# save training curve
+curve_path = f"curves/curve_N{n_params}_D{args.n_tokens}.csv"
+os.makedirs("curves", exist_ok=True)
+with open(curve_path, "w") as f:
+    writer = csv.DictWriter(f, fieldnames=["tokens_seen", "loss"])
+    writer.writeheader()
+    writer.writerows(training_curve)
 
 # save to results.csv
 file_exists = os.path.exists("results.csv")
