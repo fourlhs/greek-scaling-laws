@@ -41,7 +41,6 @@ MANIFEST
 .DS_Store
 
 # Data and models
-*.csv
 *.json
 results/
 models/
