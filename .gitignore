@@ -66,3 +66,4 @@ cache/
 uv.lock
 
 dataset_cache.npy
+curves/
