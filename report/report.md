@@ -79,18 +79,18 @@ Models were trained across 4 sizes and 3 token counts, giving 12 runs total.
 
 | N (params) | D (tokens) | FLOPs | Val Loss |
 |---|---|---|---|
-| 1.2M | 5M | 3.7e13 | 8.00 |
+| 1.2M | 5M | 3.7e13 | 8.16 |
 | 1.2M | 20M | 1.5e14 | 5.64 |
-| 1.2M | 80M | 5.9e14 | 4.18 |
-| 2.9M | 5M | 8.6e13 | 7.35 |
-| 2.9M | 20M | 3.4e14 | 5.34 |
-| 2.9M | 80M | 1.4e15 | 3.85 |
-| 8.9M | 5M | 2.7e14 | 6.62 |
-| 8.9M | 20M | 1.1e15 | 4.87 |
-| 8.9M | 80M | 4.3e15 | 3.16 |
-| 33.5M | 5M | 1.0e15 | 6.09 |
-| 33.5M | 20M | 4.0e15 | 4.51 |
-| 33.5M | 80M | 1.6e16 | TBD |
+| 1.2M | 80M | 5.9e14 | 4.21 |
+| 2.9M | 5M | 8.6e13 | 7.29 |
+| 2.9M | 20M | 3.4e14 | 5.30 |
+| 2.9M | 80M | 1.4e15 | 3.82 |
+| 8.9M | 5M | 2.7e14 | 6.65 |
+| 8.9M | 20M | 1.1e15 | 4.80 |
+| 8.9M | 80M | 4.3e15 | 3.21 |
+| 33.5M | 5M | 1.0e15 | 6.06 |
+| 33.5M | 20M | 4.0e15 | 4.50 |
+| 33.5M | 80M | 1.6e16 | 2.79 |
 
 ## Training Curves
 
@@ -110,17 +110,17 @@ A power law of the form $L(X) = a \cdot X^b + c$ was fit to the data for each ax
 
 | Axis | a | b | c |
 |---|---|---|---|
-| Parameters (N) | TBD | TBD | TBD |
-| Training Tokens (D) | 315.97 | -0.251 | 0.471 |
-| FLOPs (C) | 2924.47 | -0.193 | 1.060 |
+| Parameters (N) | 157.19 | -0.295 | 3.492 |
+| Training Tokens (D) | 138.34 | -0.176 | -2.110 |
+| FLOPs (C) | 1167.88 | -0.159 | -0.175 |
 
 ## Comparison with Literature
 
 | Axis | This work | Kaplan et al. (2020) |
 |---|---|---|
-| N | TBD | -0.076 |
-| D | -0.251 | -0.095 |
-| FLOPs | -0.193 | -0.050 |
+| N | -0.295 | -0.076 |
+| D | -0.176 | -0.095 |
+| FLOPs | -0.159 | -0.050 |
 
 Our exponents are steeper than Kaplan et al., meaning loss drops faster per unit of scale. This is expected given the small scale of our experiments — in the low-data, low-parameter regime, each additional token or parameter has a larger marginal effect. The trend saturates at scale, which is what Kaplan observed.
 
