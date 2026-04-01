@@ -126,20 +126,13 @@ Our exponents are steeper than Kaplan et al., meaning loss drops faster per unit
 
 ---
 
-# Compute-Optimal Frontier
+# Compute-Optimal Allocation
 
-For each FLOP budget, the (N, D) combination with the lowest validation loss was identified empirically. Power laws were then fit to determine how optimal N and D scale with compute:
+The following plot shows all 12 runs on a single loss vs FLOPs chart. Each color represents a model size and each marker shape a token count. Lines connect runs of the same model trained on increasing amounts of data.
 
-![Compute-optimal frontier](plots/compute_optimal_frontier.png)
+![Loss vs Compute: Different (N, D) Allocations](plots/isoflops.png)
 
-## Compute Allocation Exponents
-
-| Relationship | Exponent | Chinchilla |
-|---|---|---|
-| N_opt ∝ C^a | a = 0.55 | ~0.50 |
-| D_opt ∝ C^b | b = 0.45 | ~0.50 |
-
-The exponents sum to 1.0, confirming that C = 6·N·D holds. Our data slightly favors scaling model size (0.55) over data (0.45), but is close to the balanced 50/50 allocation found by Chinchilla. This suggests that at small scale, additional parameters provide marginally more benefit than additional data.
+For a given FLOP budget, runs that use a smaller model with more data consistently achieve lower loss than larger models trained on less data. For example, the 2.9M model trained on 80M tokens (1.4e15 FLOPs) outperforms the 33.5M model trained on 5M tokens (1.0e15 FLOPs), despite using similar compute. This is consistent with the Chinchilla finding that models are typically undertrained — allocating more tokens relative to parameters yields better performance per FLOP.
 
 ---
 
