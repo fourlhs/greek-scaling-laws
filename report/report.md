@@ -1,7 +1,7 @@
 ---
 title: "Deriving Scaling Laws from Scratch"
 author: "Nikos Fourlis"
-date: "March 2026"
+date: "April 2026"
 geometry: margin=2.5cm
 fontsize: 11pt
 ---
