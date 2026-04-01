@@ -1,14 +1,13 @@
 set -e
 
-# 4 model sizes x 3 token counts = 12 runs
+# 3 model sizes x 3 token counts = 9 runs
 MODELS=(
-    "4 64 4"    # 1.2M
-    "4 128 4"   # 2.9M
-    "6 256 8"   # 8.9M
-    "8 512 8"   # 33.5M
+    "4 64 4"     # ~1M
+    "6 256 8"    # ~10M
+    "12 768 12"  # ~100M
 )
 
-TOKENS=(5000000 20000000 80000000)
+TOKENS=(2000000 20000000 200000000)
 
 for model in "${MODELS[@]}"; do
     read n_layers d_model n_heads <<< $model
