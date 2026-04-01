@@ -85,8 +85,11 @@ tokens_seen = 0
 step = 0
 target_tokens = args.n_tokens
 training_curve = []
+tokens_per_step = 32 * 256
+total_steps = target_tokens // tokens_per_step
+scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=total_steps, eta_min=3e-5)
 
-print(f"Model: {n_params:,} params, training for {target_tokens:,} tokens")
+print(f"Model: {n_params:,} params, training for {target_tokens:,} tokens ({total_steps} steps)")
 
 model.train()
 while tokens_seen < target_tokens:
@@ -99,6 +102,7 @@ while tokens_seen < target_tokens:
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+        scheduler.step()
         tokens_seen += x.numel()
         step += 1
         if step % 5 == 0:

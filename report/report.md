@@ -138,7 +138,7 @@ The frontier shows that at higher FLOP budgets, the optimal strategy shifts towa
 
 # Limitations
 
-- **No learning rate schedule:** A constant lr=3e-4 was used. A cosine decay schedule would likely improve final validation loss, especially for longer runs.
+- **Learning rate schedule:** Cosine annealing from 3e-4 to 3e-5 was used.
 - **Small scale:** All runs are far below the scale of Kaplan or Chinchilla. Exponents may not generalize.
 - **Training curves:** Per-step loss was logged every 5,000 tokens for each run.
 - **Single seed:** Each configuration was run once. Variance across seeds is unknown.
