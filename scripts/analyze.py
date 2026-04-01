@@ -64,19 +64,55 @@ plt.savefig("plots/scaling_laws.png", dpi=150)
 plt.show()
 print("Saved to plots/scaling_laws.png")
 
-# Compute-optimal frontier
+# Compute-optimal frontier: for each FLOP budget, find the (N, D) with lowest loss
 optimal = df.loc[df.groupby("flops")["val_loss"].idxmin()]
 
-fig, ax = plt.subplots(figsize=(7, 5))
-sc = ax.scatter(optimal["n_params"], optimal["n_tokens"], c=optimal["flops"],
-                cmap="plasma", s=100, zorder=5)
-plt.colorbar(sc, ax=ax, label="FLOPs")
-ax.set_xscale("log")
-ax.set_yscale("log")
-ax.set_xlabel("Parameters (N)")
-ax.set_ylabel("Training Tokens (D)")
-ax.set_title("Compute-Optimal Frontier")
-ax.grid(True, which="both", ls="--", alpha=0.4)
+def linear_log(x, a, b):
+    return a * np.log10(x) + b
+
+fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+fig.suptitle("Compute-Optimal Frontier", fontsize=14)
+
+# N_opt vs FLOPs
+axes[0].scatter(optimal["flops"], optimal["n_params"], color="steelblue", s=80, zorder=5)
+try:
+    popt, _ = curve_fit(linear_log, optimal["flops"].values, np.log10(optimal["n_params"].values))
+    x_fit = np.logspace(np.log10(optimal["flops"].min()), np.log10(optimal["flops"].max()), 200)
+    axes[0].plot(x_fit, 10**linear_log(x_fit, *popt), color="steelblue", linestyle="--", label=f"N ∝ C^{popt[0]:.2f}")
+    print(f"N_opt vs FLOPs: exponent={popt[0]:.3f}")
+except Exception as e:
+    print(f"N_opt fit failed: {e}")
+axes[0].set_xscale("log")
+axes[0].set_yscale("log")
+axes[0].set_xlabel("FLOPs")
+axes[0].set_ylabel("Optimal N (params)")
+axes[0].set_title("Optimal Model Size vs Compute")
+axes[0].legend()
+axes[0].grid(True, which="both", ls="--", alpha=0.4)
+
+# D_opt vs FLOPs
+axes[1].scatter(optimal["flops"], optimal["n_tokens"], color="tomato", s=80, zorder=5)
+try:
+    popt, _ = curve_fit(linear_log, optimal["flops"].values, np.log10(optimal["n_tokens"].values))
+    x_fit = np.logspace(np.log10(optimal["flops"].min()), np.log10(optimal["flops"].max()), 200)
+    axes[1].plot(x_fit, 10**linear_log(x_fit, *popt), color="tomato", linestyle="--", label=f"D ∝ C^{popt[0]:.2f}")
+    print(f"D_opt vs FLOPs: exponent={popt[0]:.3f}")
+except Exception as e:
+    print(f"D_opt fit failed: {e}")
+axes[1].set_xscale("log")
+axes[1].set_yscale("log")
+axes[1].set_xlabel("FLOPs")
+axes[1].set_ylabel("Optimal D (tokens)")
+axes[1].set_title("Optimal Data vs Compute")
+axes[1].legend()
+axes[1].grid(True, which="both", ls="--", alpha=0.4)
+
+# Loss vs FLOPs for optimal points
+axes[2].scatter(optimal["flops"], optimal["val_loss"], color="purple", s=80, zorder=5)
+fit_and_plot(axes[2], optimal["flops"].values, optimal["val_loss"].values, "FLOPs", "purple", scatter=False)
+axes[2].set_title("Optimal Loss vs Compute")
+axes[2].grid(True, which="both", ls="--", alpha=0.4)
+
 plt.tight_layout()
 plt.savefig("plots/compute_optimal_frontier.png", dpi=150)
 plt.show()
