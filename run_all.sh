@@ -14,7 +14,7 @@ for model in "${MODELS[@]}"; do
     read n_layers d_model n_heads <<< $model
     for n_tokens in "${TOKENS[@]}"; do
         echo "Running: layers=$n_layers d_model=$d_model tokens=$n_tokens"
-        uv run train.py \
+        python train.py \
             --n_layers $n_layers \
             --d_model $d_model \
             --n_heads $n_heads \
