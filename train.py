@@ -82,6 +82,7 @@ optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4)
 
 n_params = model.count_params()
 tokens_seen = 0
+step = 0
 target_tokens = args.n_tokens
 training_curve = []
 
@@ -99,7 +100,8 @@ while tokens_seen < target_tokens:
         loss.backward()
         optimizer.step()
         tokens_seen += x.numel()
-        if tokens_seen % 10000 == 0:
+        step += 1
+        if step % 5 == 0:
             training_curve.append({"tokens_seen": tokens_seen, "loss": loss.item()})
             print(f"  tokens: {tokens_seen:,} / {target_tokens:,} | loss: {loss.item():.4f}")
 

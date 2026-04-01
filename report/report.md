@@ -79,18 +79,22 @@ Models were trained across 4 sizes and 3 token counts, giving 12 runs total.
 
 | N (params) | D (tokens) | FLOPs | Val Loss |
 |---|---|---|---|
-| 1.2M | 5M | 3.7e13 | 8.08 |
+| 1.2M | 5M | 3.7e13 | 8.00 |
 | 1.2M | 20M | 1.5e14 | 5.64 |
-| 1.2M | 80M | 5.9e14 | 4.21 |
-| 2.9M | 5M | 8.6e13 | 7.47 |
-| 2.9M | 20M | 3.4e14 | 5.33 |
-| 2.9M | 80M | 1.4e15 | 3.77 |
-| 8.9M | 5M | 2.7e14 | 6.69 |
-| 8.9M | 20M | 1.1e15 | 4.79 |
-| 8.9M | 80M | 4.3e15 | 3.19 |
-| 33.5M | 5M | 1.0e15 | 6.05 |
-| 33.5M | 20M | 4.0e15 | 4.46 |
-| 33.5M | 80M | 1.6e16 | 2.85 |
+| 1.2M | 80M | 5.9e14 | 4.18 |
+| 2.9M | 5M | 8.6e13 | 7.35 |
+| 2.9M | 20M | 3.4e14 | 5.34 |
+| 2.9M | 80M | 1.4e15 | 3.85 |
+| 8.9M | 5M | 2.7e14 | 6.62 |
+| 8.9M | 20M | 1.1e15 | 4.87 |
+| 8.9M | 80M | 4.3e15 | 3.16 |
+| 33.5M | 5M | 1.0e15 | 6.09 |
+| 33.5M | 20M | 4.0e15 | 4.51 |
+| 33.5M | 80M | 1.6e16 | TBD |
+
+## Training Curves
+
+![Training curves: loss over tokens for each model size](plots/training_curves.png)
 
 ## Scaling Law Plots
 
@@ -106,17 +110,17 @@ A power law of the form $L(X) = a \cdot X^b + c$ was fit to the data for each ax
 
 | Axis | a | b | c |
 |---|---|---|---|
-| Parameters (N) | 66.51 | -0.221 | 2.993 |
-| Training Tokens (D) | 159.30 | -0.188 | -1.719 |
-| FLOPs (C) | 1111.65 | -0.157 | -0.262 |
+| Parameters (N) | TBD | TBD | TBD |
+| Training Tokens (D) | 315.97 | -0.251 | 0.471 |
+| FLOPs (C) | 2924.47 | -0.193 | 1.060 |
 
 ## Comparison with Literature
 
 | Axis | This work | Kaplan et al. (2020) |
 |---|---|---|
-| N | -0.221 | -0.076 |
-| D | -0.188 | -0.095 |
-| FLOPs | -0.157 | -0.050 |
+| N | TBD | -0.076 |
+| D | -0.251 | -0.095 |
+| FLOPs | -0.193 | -0.050 |
 
 Our exponents are steeper than Kaplan et al., meaning loss drops faster per unit of scale. This is expected given the small scale of our experiments — in the low-data, low-parameter regime, each additional token or parameter has a larger marginal effect. The trend saturates at scale, which is what Kaplan observed.
 
@@ -136,7 +140,7 @@ The frontier shows that at higher FLOP budgets, the optimal strategy shifts towa
 
 - **No learning rate schedule:** A constant lr=3e-4 was used. A cosine decay schedule would likely improve final validation loss, especially for longer runs.
 - **Small scale:** All runs are far below the scale of Kaplan or Chinchilla. Exponents may not generalize.
-- **No training curves logged:** Per-step loss was not saved, so training dynamics cannot be analyzed.
+- **Training curves:** Per-step loss was logged every 5,000 tokens for each run.
 - **Single seed:** Each configuration was run once. Variance across seeds is unknown.
 - **Dataset quality:** The dataset is machine-translated Greek, which may introduce artifacts that affect loss measurements.
 
