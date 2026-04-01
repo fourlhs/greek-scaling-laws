@@ -128,11 +128,18 @@ Our exponents are steeper than Kaplan et al., meaning loss drops faster per unit
 
 # Compute-Optimal Frontier
 
-For each FLOP budget, the (N, D) combination with the lowest validation loss was identified empirically.
+For each FLOP budget, the (N, D) combination with the lowest validation loss was identified empirically. Power laws were then fit to determine how optimal N and D scale with compute:
 
 ![Compute-optimal frontier](plots/compute_optimal_frontier.png)
 
-The frontier shows that at higher FLOP budgets, the optimal strategy shifts toward more training tokens relative to model size — consistent with the Chinchilla finding that models are typically undertrained and data should scale proportionally with parameters.
+## Compute Allocation Exponents
+
+| Relationship | Exponent | Chinchilla |
+|---|---|---|
+| N_opt ∝ C^a | a = 0.55 | ~0.50 |
+| D_opt ∝ C^b | b = 0.45 | ~0.50 |
+
+The exponents sum to 1.0, confirming that C = 6·N·D holds. Our data slightly favors scaling model size (0.55) over data (0.45), but is close to the balanced 50/50 allocation found by Chinchilla. This suggests that at small scale, additional parameters provide marginally more benefit than additional data.
 
 ---
 
