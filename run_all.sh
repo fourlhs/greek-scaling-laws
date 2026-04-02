@@ -1,25 +1,20 @@
 set -e
 
-# 4 model sizes x 3 token counts = 12 runs
+# 3 models, each trained to 200M tokens
+# Evaluates at 2M, 20M, 200M checkpoints
 MODELS=(
-    "4 64 4"    # 1.2M
-    "4 128 4"   # 2.9M
-    "6 256 8"   # 8.9M
-    "8 512 8"   # 33.5M
+    "4 64 4"     # ~1M
+    "6 256 8"    # ~10M
+    "12 768 12"  # ~100M
 )
-
-TOKENS=(5000000 20000000 80000000)
 
 for model in "${MODELS[@]}"; do
     read n_layers d_model n_heads <<< $model
-    for n_tokens in "${TOKENS[@]}"; do
-        echo "Running: layers=$n_layers d_model=$d_model tokens=$n_tokens"
-        python train.py \
-            --n_layers $n_layers \
-            --d_model $d_model \
-            --n_heads $n_heads \
-            --n_tokens $n_tokens
-    done
+    echo "Running: layers=$n_layers d_model=$d_model"
+    python train.py \
+        --n_layers $n_layers \
+        --d_model $d_model \
+        --n_heads $n_heads
 done
 
 echo "All runs complete. Results in results.csv"

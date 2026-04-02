@@ -12,8 +12,10 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--n_layers", type=int, required=True)
 parser.add_argument("--d_model", type=int, required=True)
 parser.add_argument("--n_heads", type=int, required=True)
-parser.add_argument("--n_tokens", type=int, required=True)
 args = parser.parse_args()
+
+EVAL_AT = [2_000_000, 20_000_000, 200_000_000]
+TARGET_TOKENS = EVAL_AT[-1]
 
 def build_dataset(tokenizer_path, context_length, cache_path="dataset_cache.npy"):
     if os.path.exists(cache_path):
@@ -21,27 +23,27 @@ def build_dataset(tokenizer_path, context_length, cache_path="dataset_cache.npy"
         data = np.load(cache_path, mmap_mode='r')
         split = int(0.9 * len(data))
         return data[:split], data[split:]
-    
+
     print("Tokenizing dataset (first time only)...")
     tokenizer = Tokenizer.from_file(tokenizer_path)
     dataset = load_dataset("alexliap/tinystories-gr", split="train")
-    
+
     eos_id = tokenizer.token_to_id("<|endoftext|>")
     all_tokens = []
     for example in dataset:
         ids = tokenizer.encode(example["greek_translation"]).ids
         all_tokens.extend(ids + [eos_id])
-    
+
     all_tokens = np.array(all_tokens, dtype=np.uint16)
-    
+
     n = len(all_tokens)
     n_chunks = n // (context_length + 1)
     all_tokens = all_tokens[:n_chunks * (context_length + 1)]
     data = all_tokens.reshape(n_chunks, context_length + 1)
-    
+
     data = data[np.random.default_rng(42).permutation(len(data))]
     np.save(cache_path, data)
-    
+
     split = int(0.9 * len(data))
     return data[:split], data[split:]
 
@@ -81,17 +83,26 @@ model = GPT(config).to(device)
 optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4)
 
 n_params = model.count_params()
+tokens_per_step = 32 * 256
+total_steps = TARGET_TOKENS // tokens_per_step
+scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=total_steps, eta_min=3e-5)
+
 tokens_seen = 0
 step = 0
-target_tokens = args.n_tokens
 training_curve = []
+eval_checkpoints = sorted(EVAL_AT)
+next_eval_idx = 0
 
-print(f"Model: {n_params:,} params, training for {target_tokens:,} tokens")
+print(f"Model: {n_params:,} params, training for {TARGET_TOKENS:,} tokens")
+print(f"Will evaluate at: {[f'{t:,}' for t in eval_checkpoints]}")
+
+os.makedirs("curves", exist_ok=True)
+os.makedirs("models", exist_ok=True)
 
 model.train()
-while tokens_seen < target_tokens:
+while tokens_seen < TARGET_TOKENS:
     for x, y in train_loader:
-        if tokens_seen >= target_tokens:
+        if tokens_seen >= TARGET_TOKENS:
             break
         x, y = x.to(device), y.to(device)
         logits = model(x)
@@ -99,29 +110,37 @@ while tokens_seen < target_tokens:
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+        scheduler.step()
         tokens_seen += x.numel()
         step += 1
         if step % 5 == 0:
             training_curve.append({"tokens_seen": tokens_seen, "loss": loss.item()})
-            print(f"  tokens: {tokens_seen:,} / {target_tokens:,} | loss: {loss.item():.4f}")
+            print(f"  tokens: {tokens_seen:,} / {TARGET_TOKENS:,} | loss: {loss.item():.4f}")
 
-val_loss = evaluate(model, val_loader, device)
-n_flops = 6 * n_params * args.n_tokens
+        # Evaluate and log at checkpoints
+        if next_eval_idx < len(eval_checkpoints) and tokens_seen >= eval_checkpoints[next_eval_idx]:
+            checkpoint_tokens = eval_checkpoints[next_eval_idx]
+            val_loss = evaluate(model, val_loader, device)
+            n_flops = 6 * n_params * checkpoint_tokens
+            print(f"\n  === EVAL @ {checkpoint_tokens:,} tokens | val_loss={val_loss:.4f} ===\n")
 
-print(f"val_loss={val_loss:.4f}")
+            file_exists = os.path.exists("results.csv")
+            with open("results.csv", "a") as f:
+                writer = csv.DictWriter(f, fieldnames=["n_params", "n_tokens", "flops", "val_loss"])
+                if not file_exists:
+                    writer.writeheader()
+                writer.writerow({"n_params": n_params, "n_tokens": checkpoint_tokens, "flops": n_flops, "val_loss": val_loss})
 
-# save training curve
-curve_path = f"curves/curve_N{n_params}_D{args.n_tokens}.csv"
-os.makedirs("curves", exist_ok=True)
+            model.train()
+            next_eval_idx += 1
+
+# Save training curve
+curve_path = f"curves/curve_N{n_params}.csv"
 with open(curve_path, "w") as f:
     writer = csv.DictWriter(f, fieldnames=["tokens_seen", "loss"])
     writer.writeheader()
     writer.writerows(training_curve)
 
-# save to results.csv
-file_exists = os.path.exists("results.csv")
-with open("results.csv", "a") as f:
-    writer = csv.DictWriter(f, fieldnames=["n_params", "n_tokens", "flops", "val_loss"])
-    if not file_exists:
-        writer.writeheader()
-    writer.writerow({"n_params": n_params, "n_tokens": args.n_tokens, "flops": n_flops, "val_loss": val_loss})
+# Save final model
+torch.save(model.state_dict(), f"models/model_N{n_params}.pt")
+print(f"Saved model to models/model_N{n_params}.pt")
