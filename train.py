@@ -96,12 +96,33 @@ next_eval_idx = 0
 print(f"Model: {n_params:,} params, training for {TARGET_TOKENS:,} tokens")
 print(f"Will evaluate at: {[f'{t:,}' for t in eval_checkpoints]}")
 
+CHECKPOINT_EVERY = 50
+
 os.makedirs("curves", exist_ok=True)
 os.makedirs("models", exist_ok=True)
+os.makedirs("checkpoints", exist_ok=True)
+
+# Resume from checkpoint if available
+ckpt_path = f"checkpoints/ckpt_N{n_params}.pt"
+if os.path.exists(ckpt_path):
+    ckpt = torch.load(ckpt_path, map_location=device)
+    model.load_state_dict(ckpt["model"])
+    optimizer.load_state_dict(ckpt["optimizer"])
+    scheduler.load_state_dict(ckpt["scheduler"])
+    step = ckpt["step"]
+    tokens_seen = ckpt["tokens_seen"]
+    training_curve = ckpt["training_curve"]
+    next_eval_idx = ckpt["next_eval_idx"]
+    print(f"Resumed from step {step}, tokens_seen={tokens_seen:,}")
+
+batches_to_skip = step
 
 model.train()
 while tokens_seen < TARGET_TOKENS:
-    for x, y in train_loader:
+    for batch_idx, (x, y) in enumerate(train_loader):
+        if batch_idx < batches_to_skip:
+            continue
+        batches_to_skip = 0
         if tokens_seen >= TARGET_TOKENS:
             break
         x, y = x.to(device), y.to(device)
@@ -116,6 +137,18 @@ while tokens_seen < TARGET_TOKENS:
         if step % 5 == 0:
             training_curve.append({"tokens_seen": tokens_seen, "loss": loss.item()})
             print(f"  tokens: {tokens_seen:,} / {TARGET_TOKENS:,} | loss: {loss.item():.4f}")
+
+        # Checkpoint
+        if step % CHECKPOINT_EVERY == 0:
+            torch.save({
+                "model": model.state_dict(),
+                "optimizer": optimizer.state_dict(),
+                "scheduler": scheduler.state_dict(),
+                "step": step,
+                "tokens_seen": tokens_seen,
+                "training_curve": training_curve,
+                "next_eval_idx": next_eval_idx,
+            }, ckpt_path)
 
         # Evaluate and log at checkpoints
         if next_eval_idx < len(eval_checkpoints) and tokens_seen >= eval_checkpoints[next_eval_idx]:
@@ -144,3 +177,7 @@ with open(curve_path, "w") as f:
 # Save final model
 torch.save(model.state_dict(), f"models/model_N{n_params}.pt")
 print(f"Saved model to models/model_N{n_params}.pt")
+
+# Clean up checkpoint
+if os.path.exists(ckpt_path):
+    os.remove(ckpt_path)
