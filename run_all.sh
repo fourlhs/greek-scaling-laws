@@ -11,7 +11,7 @@ MODELS=(
 for model in "${MODELS[@]}"; do
     read n_layers d_model n_heads <<< $model
     echo "Running: layers=$n_layers d_model=$d_model"
-    python train.py \
+    uv run train.py \
         --n_layers $n_layers \
         --d_model $d_model \
         --n_heads $n_heads
