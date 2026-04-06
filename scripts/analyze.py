@@ -1,65 +1,52 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.optimize import curve_fit
 
 df = pd.read_csv("results.csv")
 
-def power_law(x, a, b, c):
-    return a * x ** b + c
+def log_fit(x, y):
+    """Fit L = a * X^b in log-log space (linear regression on logs)."""
+    log_x, log_y = np.log(x), np.log(y)
+    b, log_a = np.polyfit(log_x, log_y, 1)
+    return np.exp(log_a), b
 
-def fit_and_plot(ax, x, y, xlabel, color, scatter=True):
-    try:
-        popt, _ = curve_fit(power_law, x, y, p0=[10, -0.3, 2], maxfev=10000)
-        a, b, c = popt
-        x_fit = np.logspace(np.log10(x.min()), np.log10(x.max()), 200)
-        ax.plot(x_fit, power_law(x_fit, *popt), color=color, linestyle="--", label=f"fit: {a:.2f}·x^{b:.2f} + {c:.2f}")
-        print(f"{xlabel}: a={a:.3f}, b={b:.3f}, c={c:.3f}")
-    except Exception as e:
-        print(f"Fit failed for {xlabel}: {e}")
-    if scatter:
-        ax.scatter(x, y, color=color, zorder=5)
+fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+fig.suptitle("Scaling Laws — Greek LM (21 runs)", fontsize=14)
+
+configs = [
+    (0, "n_params", "Parameters (N)", "n_tokens", "D", "Loss vs Model Size"),
+    (1, "n_tokens", "Training Tokens (D)", "n_params", "N", "Loss vs Training Tokens"),
+    (2, "flops", "FLOPs (6·N·D)", None, None, "Loss vs FLOPs"),
+]
+
+for idx, xcol, xlabel, group_col, group_prefix, title in configs:
+    ax = axes[idx]
+
+    # Scatter points colored by the other axis (or plain for FLOPs)
+    if group_col:
+        for val, grp in df.groupby(group_col):
+            ax.scatter(grp[xcol], grp["val_loss"],
+                       label=f"{group_prefix}={val/1e6:.0f}M", zorder=5)
+    else:
+        ax.scatter(df[xcol], df["val_loss"], color="purple", zorder=5)
+
+    # Power-law fit: L = a * X^b
+    x, y = df[xcol].values.astype(float), df["val_loss"].values.astype(float)
+    a, b = log_fit(x, y)
+    x_fit = np.logspace(np.log10(x.min()), np.log10(x.max()), 200)
+    ax.plot(x_fit, a * x_fit ** b, "k--", alpha=0.7,
+            label=f"fit: L = {a:.1f}·X^{{{b:.3f}}}")
+    print(f"{xlabel}: a={a:.3f}, b={b:.3f}")
+
     ax.set_xscale("log")
     ax.set_yscale("log")
     ax.set_xlabel(xlabel)
     ax.set_ylabel("Val Loss")
-    ax.legend()
+    ax.set_title(title)
+    ax.legend(fontsize=8)
     ax.grid(True, which="both", ls="--", alpha=0.4)
-
-fig, axes = plt.subplots(1, 3, figsize=(15, 5))
-fig.suptitle("Scaling Laws — Greek LM", fontsize=14)
-
-# Loss vs N
-for n_tokens, grp in df.groupby("n_tokens"):
-    axes[0].scatter(grp["n_params"], grp["val_loss"], label=f"D={n_tokens/1e6:.0f}M")
-axes[0].set_xscale("log")
-axes[0].set_yscale("log")
-axes[0].set_xlabel("Parameters (N)")
-axes[0].set_ylabel("Val Loss")
-axes[0].set_title("Loss vs Model Size")
-axes[0].legend()
-axes[0].grid(True, which="both", ls="--", alpha=0.4)
-
-# Loss vs D
-for n_params, grp in df.groupby("n_params"):
-    axes[1].scatter(grp["n_tokens"], grp["val_loss"], label=f"N={n_params/1e6:.1f}M")
-axes[1].set_xscale("log")
-axes[1].set_yscale("log")
-axes[1].set_xlabel("Training Tokens (D)")
-axes[1].set_ylabel("Val Loss")
-axes[1].set_title("Loss vs Training Tokens")
-axes[1].legend()
-axes[1].grid(True, which="both", ls="--", alpha=0.4)
-
-# Loss vs FLOPs
-fit_and_plot(axes[2], df["flops"].values, df["val_loss"].values, "FLOPs", "purple")
-axes[2].set_title("Loss vs FLOPs")
-
-# Loss vs N x D
-fit_and_plot(axes[0], df["n_params"].values, df["val_loss"].values, "Parameters (N)", "purple", scatter=False)
-fit_and_plot(axes[1], df["n_tokens"].values, df["val_loss"].values, "Training Tokens (D)", "purple", scatter=False)
 
 plt.tight_layout()
 plt.savefig("plots/scaling_laws.png", dpi=150)
 plt.show()
-print("Saved to plots/scaling_laws.png")
+print("\nSaved to plots/scaling_laws.png")
