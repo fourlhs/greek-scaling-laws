@@ -5,9 +5,15 @@ df = pd.read_csv("results.csv")
 
 fig, ax = plt.subplots(figsize=(9, 6))
 
-# Plot loss vs FLOPs, colored by model size, shaped by token count
-colors = {1238144: "steelblue", 2869504: "tomato", 8886784: "forestgreen", 33506304: "purple"}
-markers = {5000000: "o", 20000000: "s", 80000000: "D"}
+# Dynamic colors and markers for all model sizes and token counts
+unique_params = sorted(df["n_params"].unique())
+unique_tokens = sorted(df["n_tokens"].unique())
+
+color_palette = ["steelblue", "tomato", "forestgreen", "purple", "darkorange"]
+marker_list = ["o", "s", "D", "^", "v"]
+
+colors = {n: color_palette[i % len(color_palette)] for i, n in enumerate(unique_params)}
+markers = {d: marker_list[i % len(marker_list)] for i, d in enumerate(unique_tokens)}
 
 for _, row in df.iterrows():
     n, d = int(row["n_params"]), int(row["n_tokens"])
@@ -19,9 +25,6 @@ for n_params, grp in df.groupby("n_params"):
     grp = grp.sort_values("flops")
     ax.plot(grp["flops"], grp["val_loss"], color=colors[n_params], alpha=0.5,
             label=f"N={n_params/1e6:.1f}M")
-
-# Connect the optimal frontier
-optimal = df.loc[df.groupby("n_tokens")["val_loss"].idxmin()].sort_values("flops")
 
 # Legend for markers
 for d, m in markers.items():
