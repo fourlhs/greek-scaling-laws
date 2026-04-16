@@ -2,6 +2,7 @@ from dataclasses import dataclass
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from kernels.attention import flash_attention
 
 @dataclass
 class GPTConfig:
@@ -26,18 +27,18 @@ class CausalSelfAttention(nn.Module):
 
     def forward(self, x):
         B, T, C = x.shape
-        
+
         qkv = self.qkv(x)
         Q, K, V = qkv.split(C, dim=2)
-        
-        Q = Q.view(B, T, self.n_heads, self.d_head).transpose(1, 2)
-        K = K.view(B, T, self.n_heads, self.d_head).transpose(1, 2)
-        V = V.view(B, T, self.n_heads, self.d_head).transpose(1, 2)
-        
-        out = F.scaled_dot_product_attention(Q, K, V, is_causal=True, dropout_p=self.dropout if self.training else 0.0)
-        
-        out = out.transpose(1, 2).contiguous().view(B, T, C)
-        
+
+        Q = Q.view(B, T, self.n_heads, self.d_head)
+        K = K.view(B, T, self.n_heads, self.d_head)
+        V = V.view(B, T, self.n_heads, self.d_head)
+
+        out = flash_attention(Q, K, V, is_causal=True)
+
+        out = out.reshape(B, T, C)
+
         return self.proj(out)
     
 class Block(nn.Module):
