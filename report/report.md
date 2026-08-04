@@ -170,6 +170,7 @@ The uncertainty exceeds the estimate. This is a property of the experimental des
 
 # Limitations
 
+- **Weight initialisation was left at PyTorch defaults.** `model.py` defines no initialisation scheme, so `nn.Embedding` retains its default N(0, 1). Because the LM head is weight-tied to the token embedding, initial logits have a standard deviation of roughly √d_model rather than the ≈0.02·√d_model that GPT-2-style initialisation produces. The consequence is visible in the training curves: every run begins between 40 and 102 nats, four to ten times worse than the 9.68-nat uniform-random baseline. The penalty is not uniform across the grid — the 5M-token runs require 2–4M tokens simply to reach random-guessing loss, roughly half their budget, against a few percent for the 80M-token runs. This inflates loss at low D and is therefore a second contributor to the steep D exponent, independent of the learning rate schedule. It also penalises wider models more, since the logit scale grows with √d_model, which flattens the measured N exponent and means the agreement with Kaplan reported above is likely flattered.
 - **No learning rate schedule, and no run converged.** This is the dominant limitation. A constant lr=3e-4 was used with no warmup or decay, so increasing D also increases optimizer steps, and the D exponent measures optimization progress alongside data. The three budgets correspond to 611, 2,442 and 9,766 steps; the shortest runs end at 6–8 nats against a 9.68-nat random baseline, meaning they capture the initial transient rather than converged performance. A cosine schedule with warmup, length-matched per run, is the first correction to make.
 - **Factorial rather than iso-FLOP grid.** Well suited to isolating the N and D axes cleanly, poorly suited to estimating a compute exponent or locating an allocation frontier (R² = 0.66 on the compute fit).
 - **Untuned learning rate across a 127× parameter range.** The optimal learning rate shifts with model width, so a single value handicaps some sizes relative to others in an unknown direction.
@@ -181,11 +182,12 @@ The uncertainty exceeds the estimate. This is a property of the experimental des
 
 # What I Would Do With More Compute
 
-1. Warmup plus cosine decay scaled to each run's token budget, so that D measures data rather than optimizer progress — this alone should bring the D exponent substantially closer to the literature value.
-2. Iso-FLOP profiles at three or four fixed budgets, sweeping the (N, D) split within each, to locate the compute-optimal frontier directly instead of inferring it from a factorial grid.
-3. A short learning-rate sweep per model size, so the comparison across N is not confounded by a single untuned value.
-4. Three seeds per configuration, to distinguish genuine curvature from run-to-run noise.
-5. Extended token budgets for the larger models, so that at least the upper end of the grid approaches its loss floor and the fitted irreducible term `E` becomes identifiable.
+1. GPT-2-style weight initialisation (standard deviation 0.02, with residual projections scaled by 1/√(2·n_layers)), so that runs begin near the uniform-random baseline instead of far above it. At present a large fraction of the shortest budgets is spent undoing the initialisation rather than learning.
+2. Warmup plus cosine decay scaled to each run's token budget, so that D measures data rather than optimizer progress. Together with the initialisation fix, this addresses both identified contributors to the steep D exponent.
+3. Iso-FLOP profiles at three or four fixed budgets, sweeping the (N, D) split within each, to locate the compute-optimal frontier directly instead of inferring it from a factorial grid.
+4. A short learning-rate sweep per model size, so the comparison across N is not confounded by a single untuned value.
+5. Three seeds per configuration, to distinguish genuine curvature from run-to-run noise.
+6. Extended token budgets for the larger models, so that at least the upper end of the grid approaches its loss floor and the fitted irreducible term `E` becomes identifiable.
 
 ---
 

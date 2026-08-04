@@ -94,7 +94,7 @@ Where the grid does allow a matched comparison, the direction is unambiguous and
 
 ![Loss over tokens, grouped by token budget](plots/training_curves.png)
 
-Every curve is still descending steeply at cutoff — none of these runs converged, by design (the brief asks for the trend, not convergence) and by consequence (see [Limitations](#limitations)).
+Every curve is still descending steeply at cutoff — none of these runs converged, by design (the goal was the trend, not convergence) and by consequence (see [Limitations](#limitations)).
 
 The red line is the uniform-random baseline, and it exposes a defect worth stating plainly: **every run begins between 40 and 102 nats, four to ten times worse than random guessing.** A correctly initialized model starts at ln(16000) = 9.68. The cause is initialization — `model.py` never defines an init, so `nn.Embedding` keeps PyTorch's default N(0, 1), and since the LM head is weight-tied to that table the output logits start with standard deviation ≈ √d_model instead of ≈ 0.02·√d_model. GPT-2 uses std 0.02 for exactly this reason.
 
@@ -176,7 +176,7 @@ scripts/plot_isoflops.py     Compute-allocation plot with matched-budget pairs
 scripts/plot_memory.py       RSS: full np.load vs mmap
 
 model_walkthrough.ipynb      Annotated forward pass — tensor shapes, attention maps
-report/report.md             Full write-up
+report/report.md             Full write-up (Markdown; see README for PDF rendering)
 results.csv                  n_params, n_params_non_embed, n_tokens, flops, val_loss
 scaling_fits.json            Fitted coefficients emitted by analyze.py
 curves/                      Per-run loss traces
@@ -252,7 +252,23 @@ AdamW, lr 3e-4 constant, batch 32 × 256 tokens = 8,192 tokens/step — so the b
 
 ### Given more compute
 
-Warmup + cosine decay scaled to each run's length, so D measures data rather than optimizer progress; iso-FLOP profiles to pin the allocation frontier properly; a short LR sweep per model size; 3 seeds per cell for real error bars; and D extended far enough that the largest models approach their loss floor, so the fits describe convergence instead of the transient.
+In rough priority order: GPT-2-style weight init (std 0.02, residual projections scaled by 1/√(2·n_layers)), since the current runs waste a large share of the short budgets recovering from N(0,1) embeddings; warmup plus cosine decay length-matched to each run, so D measures data rather than optimizer progress; iso-FLOP profiles to pin the allocation frontier properly; a short LR sweep per model size; 3 seeds per cell for real error bars; and D extended far enough that the largest models approach their loss floor, so the fits describe convergence rather than the transient.
+
+---
+
+## Report
+
+[`report/report.md`](report/report.md) is the full write-up and renders on GitHub. To produce a PDF:
+
+```bash
+pandoc report/report.md -o report/report.pdf
+```
+
+---
+
+## License
+
+[MIT](LICENSE).
 
 ---
 
