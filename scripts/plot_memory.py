@@ -1,6 +1,8 @@
 import numpy as np
 import psutil
 import os
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 cache_path = "dataset_cache.npy"
@@ -31,5 +33,5 @@ for i, v in enumerate([peak_full_mb, peak_mmap_mb]):
     plt.text(i, v + 0.5, f"{v:.1f} MB", ha="center")
 plt.tight_layout()
 plt.savefig("plots/memory_comparison.png", dpi=150)
-plt.show()
+
 print("Saved to plots/memory_comparison.png")

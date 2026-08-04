@@ -1,4 +1,6 @@
 import pandas as pd
+import matplotlib
+matplotlib.use("Agg")  # never block run_all.sh on an interactive window
 import matplotlib.pyplot as plt
 import glob
 import os
@@ -30,5 +32,4 @@ for n_tokens, idx in token_groups.items():
 
 plt.tight_layout()
 plt.savefig("plots/training_curves.png", dpi=150)
-plt.show()
 print("Saved to plots/training_curves.png")
