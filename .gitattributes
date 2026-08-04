@@ -1,0 +1,12 @@
+# run_all.sh must keep LF endings: a CRLF shebang fails on Linux and macOS
+# with "bad interpreter: /usr/bin/env bash^M".
+*.sh text eol=lf
+
+*.py text
+*.md text
+*.csv text
+*.toml text
+
+*.png binary
+*.pdf binary
+*.npy binary
