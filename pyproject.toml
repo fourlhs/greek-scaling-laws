@@ -1,7 +1,7 @@
 [project]
-name = "ml-senior-assignment"
+name = "greek-scaling-laws"
 version = "0.1.0"
-description = "Add your description here"
+description = "Empirically derived scaling laws for a small Greek-language LM"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
