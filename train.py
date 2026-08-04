@@ -81,12 +81,15 @@ model = GPT(config).to(device)
 optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4)
 
 n_params = model.count_params()
+n_params_non_embed = model.count_params_non_embedding()
 tokens_seen = 0
 step = 0
 target_tokens = args.n_tokens
 training_curve = []
 
-print(f"Model: {n_params:,} params, training for {target_tokens:,} tokens")
+print(f"Model: {n_params:,} params total, {n_params_non_embed:,} non-embedding "
+      f"({100 * (n_params - n_params_non_embed) / n_params:.1f}% embeddings), "
+      f"training for {target_tokens:,} tokens")
 
 model.train()
 while tokens_seen < target_tokens:
@@ -106,7 +109,9 @@ while tokens_seen < target_tokens:
             print(f"  tokens: {tokens_seen:,} / {target_tokens:,} | loss: {loss.item():.4f}")
 
 val_loss = evaluate(model, val_loader, device)
-n_flops = 6 * n_params * args.n_tokens
+# C = 6ND uses non-embedding N: embedding lookups are gathers, not matmuls, so
+# counting them inflates the compute estimate (6x for the smallest model here).
+n_flops = 6 * n_params_non_embed * args.n_tokens
 
 print(f"val_loss={val_loss:.4f}")
 
@@ -119,9 +124,16 @@ with open(curve_path, "w") as f:
     writer.writerows(training_curve)
 
 # save to results.csv
+fieldnames = ["n_params", "n_params_non_embed", "n_tokens", "flops", "val_loss"]
 file_exists = os.path.exists("results.csv")
-with open("results.csv", "a") as f:
-    writer = csv.DictWriter(f, fieldnames=["n_params", "n_tokens", "flops", "val_loss"])
+with open("results.csv", "a", newline="") as f:
+    writer = csv.DictWriter(f, fieldnames=fieldnames)
     if not file_exists:
         writer.writeheader()
-    writer.writerow({"n_params": n_params, "n_tokens": args.n_tokens, "flops": n_flops, "val_loss": val_loss})
+    writer.writerow({
+        "n_params": n_params,
+        "n_params_non_embed": n_params_non_embed,
+        "n_tokens": args.n_tokens,
+        "flops": n_flops,
+        "val_loss": val_loss,
+    })

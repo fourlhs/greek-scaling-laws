@@ -79,5 +79,24 @@ class GPT(nn.Module):
         return self.lm_head(x)
     
     def count_params(self):
+        """Total trainable parameters, embeddings included."""
         return sum(p.numel() for p in self.parameters())
-    
+
+    def count_params_non_embedding(self):
+        """Trainable parameters excluding token and position embeddings.
+
+        This is the N used in scaling law fits. Kaplan et al. (2020, §2.1)
+        exclude embeddings because the embedding table scales with vocab_size
+        rather than with model capacity, so including it corrupts the N axis at
+        small scale. Here the effect is extreme: at d_model=64 with a 16k vocab
+        the token embedding alone is 84% of all parameters, versus 25% at
+        d_model=512, so total-parameter counts would measure capacity confounded
+        with a shrinking constant.
+
+        The LM head is weight-tied to tok_emb and so is already excluded.
+        """
+        n = self.count_params()
+        n -= self.tok_emb.weight.numel()
+        n -= self.pos_emb.weight.numel()
+        return n
+
