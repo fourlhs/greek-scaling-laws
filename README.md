@@ -134,8 +134,10 @@ That is the whole pipeline: installs dependencies, trains the tokenizer, runs al
 Useful switches:
 
 ```bash
-SKIP_INSTALL=1 bash run_all.sh     # dependencies already present
-KEEP_RESULTS=1 bash run_all.sh     # append rather than archiving results.csv
+SKIP_INSTALL=1 bash run_all.sh          # dependencies already present
+KEEP_RESULTS=1 bash run_all.sh          # append rather than archiving results.csv
+LR_SCHEDULE=cosine bash run_all.sh      # warmup + cosine decay instead of constant lr
+SEED=7 bash run_all.sh                  # different initialisation
 ```
 
 Or drive the stages by hand:
@@ -144,6 +146,7 @@ Or drive the stages by hand:
 pip install -e .                   # or: uv sync
 python train_tokenizer.py          # ~10 min, writes greek_bpe_tokenizer.json
 python test_tokenizer.py           # round-trip check on a Greek sentence
+python test_schedules.py           # unit checks on the lr schedule
 
 python train.py --n_layers 6 --d_model 256 --n_heads 8 --n_tokens 20000000
 
@@ -151,6 +154,10 @@ python scripts/analyze.py          # fits + plots/scaling_laws.png + scaling_fit
 python scripts/plot_curves.py      # plots/training_curves.png
 python scripts/plot_isoflops.py    # plots/isoflops.png
 ```
+
+`train.py` also takes `--lr`, `--batch_size`, `--seed`, `--lr_schedule {constant,cosine}`, `--warmup_frac` and `--min_lr_frac`.
+
+> **On reproducing the numbers above.** `lr_schedule` defaults to `constant` because that is what produced the committed `results.csv` — a plain `bash run_all.sh` reproduces the published results. `cosine` is the better recipe and the right choice for new work, but it will not reproduce this README, and the sweep under it has not been run. See [Limitations](#limitations).
 
 The tokenizer and the tokenized corpus cache (`dataset_cache.npy`) are build artifacts, regenerated on first run and gitignored. The first `train.py` invocation tokenizes the corpus and caches it; every later run memory-maps that file, so the cost is paid once.
 
@@ -162,6 +169,8 @@ The tokenizer and the tokenized corpus cache (`dataset_cache.npy`) are build art
 train_tokenizer.py           Byte-level BPE, 16k vocab, greek_translation only
 test_tokenizer.py            Round-trip check on a Greek sentence
 model.py                     GPT: pre-LN decoder, SDPA attention, tied embeddings
+schedules.py                 LR schedules (constant, warmup + cosine decay)
+test_schedules.py            Unit checks on the schedule, incl. step overshoot
 train.py                     Dataset build/cache, training loop, eval, CSV logging
 run_all.sh                   Full pipeline: deps -> tokenizer -> sweep -> plots
 
@@ -222,19 +231,21 @@ A decoder-only transformer in PyTorch, randomly initialized per run — no pretr
 
 × token budgets **5M / 20M / 80M** = 12 runs.
 
-AdamW, lr 3e-4 constant, batch 32 × 256 tokens = 8,192 tokens/step — so the budgets are 610 / 2,441 / 9,766 optimizer steps. Validation loss is mean cross-entropy over 50 held-out batches (~410k tokens).
+AdamW, lr 3e-4 constant, batch 32 × 256 tokens = 8,192 tokens/step — so the budgets are 611 / 2,442 / 9,766 optimizer steps. Validation loss is mean cross-entropy over 50 held-out batches (~410k tokens).
 
 ---
 
 ## Limitations
 
-**Nothing converged, and D is entangled with optimizer progress.** The dominant caveat. At constant LR with no warmup or decay, the 5M-token runs get 610 steps; their losses (6–8 nats against a 9.68 random baseline) are transient, not performance. The D axis therefore partly measures where training was stopped rather than how much data was seen — the main reason `b_D` lands at -0.254 against Kaplan's -0.095. A cosine schedule with warmup, length-matched per run, is the first thing to fix.
+**Nothing converged, and D is entangled with optimizer progress.** The dominant caveat. At constant LR with no warmup or decay, the 5M-token runs get 611 steps; their losses (6–8 nats against a 9.68 random baseline) are transient, not performance. The D axis therefore partly measures where training was stopped rather than how much data was seen — the main reason `b_D` lands at -0.254 against Kaplan's -0.095.
+
+Warmup plus cosine decay, length-matched to each run's token budget, is now implemented (`LR_SCHEDULE=cosine`, `schedules.py`) and unit-tested, so each run finishes in the same part of its schedule instead of being cut off mid-descent. **It has not been run** — the published sweep predates it, and re-running is hours of GPU time. Expect it to lower every loss and to flatten `b_D` toward the literature; that prediction is currently untested, and the numbers above are the constant-LR ones.
 
 **The grid is factorial, not iso-FLOP.** Good for clean marginals in N and D, weak for a compute exponent (R² = 0.66, error bar larger than the estimate). Deriving a trustworthy compute-optimal frontier needs iso-FLOP profiles: fix a budget, sweep the (N, D) split, find the minimum.
 
-**One learning rate for a 127× parameter range.** 3e-4 everywhere, untuned. Optimal LR shifts with width, so one value systematically handicaps some sizes relative to others, and there's no way to know which without a sweep.
+**One learning rate for a 127× parameter range.** 3e-4 everywhere, untuned. Optimal LR shifts with width, so one value systematically handicaps some sizes relative to others, and there's no way to know which without a sweep. `--lr` is now exposed to make that sweep possible; it hasn't been done.
 
-**Model initialization is unseeded.** The data shuffle is seeded; `torch.manual_seed` is never called. Reruns won't reproduce exactly, and with one run per cell there's no variance estimate to separate real curvature from noise. Error bars quoted here are across slices, not across seeds.
+**The published runs were unseeded.** Only the data shuffle was seeded (`default_rng(42)`); `torch.manual_seed` was never called, so model initialisation varied run to run and the numbers above are not bitwise reproducible. `--seed` (default 42) now seeds torch, numpy and `random`, so *future* runs are — but that fix postdates the sweep. With one run per cell there is still no variance estimate; error bars quoted here are spreads across slices, not across seeds.
 
 **Five fitted parameters against 12 points spanning ~1.3 decades.** The joint fit is well-conditioned enough to be informative and not enough to be conclusive — α and β overlap, and E is unidentified.
 
@@ -246,7 +257,13 @@ AdamW, lr 3e-4 constant, batch 32 × 256 tokens = 8,192 tokens/step — so the b
 
 ### Given more compute
 
-Warmup + cosine decay scaled to each run's length, so D measures data rather than optimizer progress; iso-FLOP profiles to pin the allocation frontier properly; a short LR sweep per model size; 3 seeds per cell for real error bars; and D extended far enough that the largest models approach their loss floor, so the fits describe convergence instead of the transient.
+In priority order:
+
+1. **Re-run the sweep with `LR_SCHEDULE=cosine`.** The code is written and tested; it needs the GPU hours. This is the one change most likely to move a headline number, and it directly tests the explanation offered above for `b_D`.
+2. **Iso-FLOP profiles** at three or four fixed budgets, sweeping the (N, D) split within each, to locate the allocation frontier directly instead of inferring it from a factorial grid.
+3. **A short LR sweep per model size**, so comparisons across N aren't confounded by one untuned value.
+4. **Three seeds per cell**, for error bars that reflect run-to-run noise rather than slice-to-slice spread.
+5. **Longer runs at the top end**, so the largest models approach their loss floor and the fitted `E` becomes identifiable instead of pinning to zero.
 
 ---
 
