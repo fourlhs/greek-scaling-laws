@@ -123,7 +123,7 @@ Individual slices fit their power laws tightly (R² between 0.98 and 0.9999), so
 
 **Parameters.** The measured exponent of -0.065 ± 0.016 brackets Kaplan's -0.076. Given that this sweep spans roughly 1.3 decades of N against Kaplan's six, the agreement is closer than the scale difference would justify expecting, and should be read as encouraging rather than as a precise confirmation.
 
-**Training tokens.** At -0.254, the data exponent is 2.7× steeper than Kaplan's -0.095, and this is a genuine deviation rather than a scale effect. The cause is identifiable: with a constant learning rate and no schedule, increasing D also increases the number of optimizer steps taken (611, 2,442 and 9,766 steps for the three budgets). Because no run reached convergence, the D axis conflates "how much data the model saw" with "how far into optimization training was stopped," and both contribute to the loss reduction. The exponent should be read as an upper bound on the true data exponent for this setup.
+**Training tokens.** At -0.254, the data exponent is 2.7× steeper than Kaplan's -0.095, and this is a genuine deviation rather than a scale effect. The cause is identifiable: with a constant learning rate and no schedule, increasing D also increases the number of optimizer steps taken (610, 2,441, and 9,766 steps for the three budgets). Because no run reached convergence, the D axis conflates "how much data the model saw" with "how far into optimization training was stopped," and both contribute to the loss reduction. The exponent should be read as an upper bound on the true data exponent for this setup.
 
 ## Joint Fit
 
@@ -170,10 +170,10 @@ The uncertainty exceeds the estimate. This is a property of the experimental des
 
 # Limitations
 
-- **No learning rate schedule, and no run converged.** This is the dominant limitation. A constant lr=3e-4 was used with no warmup or decay, so increasing D also increases optimizer steps, and the D exponent measures optimization progress alongside data. The three budgets correspond to 611, 2,442 and 9,766 steps; the shortest runs end at 6–8 nats against a 9.68-nat random baseline, meaning they capture the initial transient rather than converged performance. Warmup with cosine decay, length-matched to each run's budget, has since been implemented and unit-tested (`schedules.py`, enabled with `LR_SCHEDULE=cosine`), but the sweep reported here predates it and has not been re-run under it. The expectation is that it lowers all losses and flattens the D exponent toward the literature value; that remains an untested prediction.
-- **The reported runs were unseeded.** The dataset shuffle used a fixed seed (`default_rng(42)`), but `torch.manual_seed` was never called, so model initialisation varied between runs and these numbers are not bitwise reproducible. A `--seed` flag (default 42) now seeds torch, numpy and `random`, which fixes this for future runs but not retroactively. With one run per grid cell there is also no variance estimate; the uncertainties quoted here are spreads across slices, not across seeds.
+- **No learning rate schedule, and no run converged.** This is the dominant limitation. A constant lr=3e-4 was used with no warmup or decay, so increasing D also increases optimizer steps, and the D exponent measures optimization progress alongside data. The three budgets correspond to 610, 2,441 and 9,766 steps; the shortest runs end at 6–8 nats against a 9.68-nat random baseline, meaning they capture the initial transient rather than converged performance. A cosine schedule with warmup, length-matched per run, is the first correction to make.
 - **Factorial rather than iso-FLOP grid.** Well suited to isolating the N and D axes cleanly, poorly suited to estimating a compute exponent or locating an allocation frontier (R² = 0.66 on the compute fit).
-- **Untuned learning rate across a 127× parameter range.** The optimal learning rate shifts with model width, so a single value handicaps some sizes relative to others in an unknown direction. A `--lr` flag now exposes it for sweeping.
+- **Untuned learning rate across a 127× parameter range.** The optimal learning rate shifts with model width, so a single value handicaps some sizes relative to others in an unknown direction.
+- **Unseeded model initialisation.** The data shuffle is seeded (`default_rng(42)`), but `torch.manual_seed` is never called, so runs are not bitwise reproducible. With one run per grid cell there is no variance estimate; the uncertainties quoted here are spreads across slices, not across seeds.
 - **Five parameters against 12 points.** The joint fit spans roughly 1.3 decades in each axis, leaving `E` unidentified and `α`, `β` with overlapping confidence intervals.
 - **Tokenizer trained on the full corpus,** validation split included. The effect on measured loss is small, but it is a train/test contact point and is disclosed rather than dismissed.
 - **Dataset quality:** The dataset is machine-translated Greek, so translation artifacts, a narrow register and a child-directed vocabulary all mean these exponents describe this corpus rather than the Greek language.
@@ -181,7 +181,7 @@ The uncertainty exceeds the estimate. This is a property of the experimental des
 
 # What I Would Do With More Compute
 
-1. Re-run the full sweep with warmup plus cosine decay scaled to each run's token budget, so that D measures data rather than optimizer progress. The implementation is already in place and tested (`LR_SCHEDULE=cosine`); what it needs is the GPU time. This is the single change most likely to move a headline number, and it is a direct test of the explanation offered above for the steep D exponent.
+1. Warmup plus cosine decay scaled to each run's token budget, so that D measures data rather than optimizer progress — this alone should bring the D exponent substantially closer to the literature value.
 2. Iso-FLOP profiles at three or four fixed budgets, sweeping the (N, D) split within each, to locate the compute-optimal frontier directly instead of inferring it from a factorial grid.
 3. A short learning-rate sweep per model size, so the comparison across N is not confounded by a single untuned value.
 4. Three seeds per configuration, to distinguish genuine curvature from run-to-run noise.

@@ -2,13 +2,10 @@ import numpy as np
 from tokenizers import Tokenizer
 from datasets import load_dataset
 import argparse
-import math
-import random
 import torch
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 from model import GPT, GPTConfig
-from schedules import make_lr_multiplier
 import csv, os
 
 parser = argparse.ArgumentParser()
@@ -16,26 +13,7 @@ parser.add_argument("--n_layers", type=int, required=True)
 parser.add_argument("--d_model", type=int, required=True)
 parser.add_argument("--n_heads", type=int, required=True)
 parser.add_argument("--n_tokens", type=int, required=True)
-parser.add_argument("--batch_size", type=int, default=32)
-parser.add_argument("--lr", type=float, default=3e-4)
-parser.add_argument("--seed", type=int, default=42,
-                    help="Seeds torch, numpy and random. The published sweep predates "
-                         "this flag and was run unseeded.")
-parser.add_argument("--lr_schedule", choices=["constant", "cosine"], default="constant",
-                    help="'constant' reproduces the committed results.csv. 'cosine' is "
-                         "the better recipe -- see the note below.")
-parser.add_argument("--warmup_frac", type=float, default=0.01,
-                    help="Fraction of total steps spent warming up (cosine only).")
-parser.add_argument("--min_lr_frac", type=float, default=0.1,
-                    help="Floor of the cosine decay, as a fraction of peak lr.")
 args = parser.parse_args()
-
-# Reproducibility. The original sweep seeded only the dataset shuffle, so model
-# initialisation varied run to run and nothing was bitwise reproducible.
-random.seed(args.seed)
-np.random.seed(args.seed)
-torch.manual_seed(args.seed)
-torch.cuda.manual_seed_all(args.seed)
 
 def build_dataset(tokenizer_path, context_length, cache_path="dataset_cache.npy"):
     if os.path.exists(cache_path):
@@ -95,12 +73,12 @@ print(f"Using device: {device}")
 
 train_data, val_data = build_dataset("greek_bpe_tokenizer.json", context_length=256)
 
-train_loader = DataLoader(TokenDataset(train_data), batch_size=args.batch_size, shuffle=False)
-val_loader = DataLoader(TokenDataset(val_data), batch_size=args.batch_size)
+train_loader = DataLoader(TokenDataset(train_data), batch_size=32, shuffle=False)
+val_loader = DataLoader(TokenDataset(val_data), batch_size=32)
 
 config = GPTConfig(n_layers=args.n_layers, d_model=args.d_model, n_heads=args.n_heads)
 model = GPT(config).to(device)
-optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
+optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4)
 
 n_params = model.count_params()
 n_params_non_embed = model.count_params_non_embedding()
@@ -109,24 +87,9 @@ step = 0
 target_tokens = args.n_tokens
 training_curve = []
 
-# Total steps is known up front, so the schedule can be length-matched to this
-# run's token budget rather than to some shared wall-clock notion of "an epoch".
-tokens_per_step = args.batch_size * config.context_length
-total_steps = max(1, math.ceil(target_tokens / tokens_per_step))
-warmup_steps = max(1, int(args.warmup_frac * total_steps)) if args.lr_schedule == "cosine" else 0
-
-
-scheduler = torch.optim.lr_scheduler.LambdaLR(
-    optimizer,
-    make_lr_multiplier(args.lr_schedule, warmup_steps, total_steps, args.min_lr_frac),
-)
-
 print(f"Model: {n_params:,} params total, {n_params_non_embed:,} non-embedding "
       f"({100 * (n_params - n_params_non_embed) / n_params:.1f}% embeddings), "
       f"training for {target_tokens:,} tokens")
-print(f"Schedule: {args.lr_schedule}, lr={args.lr:g}, seed={args.seed}, "
-      f"{total_steps:,} steps"
-      + (f" ({warmup_steps:,} warmup)" if args.lr_schedule == "cosine" else ""))
 
 model.train()
 while tokens_seen < target_tokens:
@@ -139,17 +102,11 @@ while tokens_seen < target_tokens:
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        scheduler.step()
         tokens_seen += x.numel()
         step += 1
         if step % 5 == 0:
-            training_curve.append({
-                "tokens_seen": tokens_seen,
-                "loss": loss.item(),
-                "lr": scheduler.get_last_lr()[0],
-            })
-            print(f"  tokens: {tokens_seen:,} / {target_tokens:,} | "
-                  f"loss: {loss.item():.4f} | lr: {scheduler.get_last_lr()[0]:.2e}")
+            training_curve.append({"tokens_seen": tokens_seen, "loss": loss.item()})
+            print(f"  tokens: {tokens_seen:,} / {target_tokens:,} | loss: {loss.item():.4f}")
 
 val_loss = evaluate(model, val_loader, device)
 # C = 6ND uses non-embedding N: embedding lookups are gathers, not matmuls, so
@@ -161,8 +118,8 @@ print(f"val_loss={val_loss:.4f}")
 # save training curve
 curve_path = f"curves/curve_N{n_params}_D{args.n_tokens}.csv"
 os.makedirs("curves", exist_ok=True)
-with open(curve_path, "w", newline="") as f:
-    writer = csv.DictWriter(f, fieldnames=["tokens_seen", "loss", "lr"])
+with open(curve_path, "w") as f:
+    writer = csv.DictWriter(f, fieldnames=["tokens_seen", "loss"])
     writer.writeheader()
     writer.writerows(training_curve)
 
