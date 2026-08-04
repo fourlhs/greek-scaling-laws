@@ -123,7 +123,7 @@ Individual slices fit their power laws tightly (R² between 0.98 and 0.9999), so
 
 **Parameters.** The measured exponent of -0.065 ± 0.016 brackets Kaplan's -0.076. Given that this sweep spans roughly 1.3 decades of N against Kaplan's six, the agreement is closer than the scale difference would justify expecting, and should be read as encouraging rather than as a precise confirmation.
 
-**Training tokens.** At -0.254, the data exponent is 2.7× steeper than Kaplan's -0.095, and this is a genuine deviation rather than a scale effect. The cause is identifiable: with a constant learning rate and no schedule, increasing D also increases the number of optimizer steps taken (610, 2,441, and 9,766 steps for the three budgets). Because no run reached convergence, the D axis conflates "how much data the model saw" with "how far into optimization training was stopped," and both contribute to the loss reduction. The exponent should be read as an upper bound on the true data exponent for this setup.
+**Training tokens.** At -0.254, the data exponent is 2.7× steeper than Kaplan's -0.095, and this is a genuine deviation rather than a scale effect. The cause is identifiable: with a constant learning rate and no schedule, increasing D also increases the number of optimizer steps taken (611, 2,442 and 9,766 steps for the three budgets). Because no run reached convergence, the D axis conflates "how much data the model saw" with "how far into optimization training was stopped," and both contribute to the loss reduction. The exponent should be read as an upper bound on the true data exponent for this setup.
 
 ## Joint Fit
 
@@ -170,7 +170,7 @@ The uncertainty exceeds the estimate. This is a property of the experimental des
 
 # Limitations
 
-- **No learning rate schedule, and no run converged.** This is the dominant limitation. A constant lr=3e-4 was used with no warmup or decay, so increasing D also increases optimizer steps, and the D exponent measures optimization progress alongside data. The three budgets correspond to 610, 2,441 and 9,766 steps; the shortest runs end at 6–8 nats against a 9.68-nat random baseline, meaning they capture the initial transient rather than converged performance. A cosine schedule with warmup, length-matched per run, is the first correction to make.
+- **No learning rate schedule, and no run converged.** This is the dominant limitation. A constant lr=3e-4 was used with no warmup or decay, so increasing D also increases optimizer steps, and the D exponent measures optimization progress alongside data. The three budgets correspond to 611, 2,442 and 9,766 steps; the shortest runs end at 6–8 nats against a 9.68-nat random baseline, meaning they capture the initial transient rather than converged performance. A cosine schedule with warmup, length-matched per run, is the first correction to make.
 - **Factorial rather than iso-FLOP grid.** Well suited to isolating the N and D axes cleanly, poorly suited to estimating a compute exponent or locating an allocation frontier (R² = 0.66 on the compute fit).
 - **Untuned learning rate across a 127× parameter range.** The optimal learning rate shifts with model width, so a single value handicaps some sizes relative to others in an unknown direction.
 - **Unseeded model initialisation.** The data shuffle is seeded (`default_rng(42)`), but `torch.manual_seed` is never called, so runs are not bitwise reproducible. With one run per grid cell there is no variance estimate; the uncertainties quoted here are spreads across slices, not across seeds.

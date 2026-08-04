@@ -94,7 +94,11 @@ Where the grid does allow a matched comparison, the direction is unambiguous and
 
 ![Loss over tokens, grouped by token budget](plots/training_curves.png)
 
-Every curve is still descending steeply at cutoff. None of these runs converged — by design (the brief asks for the trend, not convergence) and by consequence (see [Limitations](#limitations)).
+Every curve is still descending steeply at cutoff — none of these runs converged, by design (the brief asks for the trend, not convergence) and by consequence (see [Limitations](#limitations)).
+
+The red line is the uniform-random baseline, and it exposes a defect worth stating plainly: **every run begins between 40 and 102 nats, four to ten times worse than random guessing.** A correctly initialized model starts at ln(16000) = 9.68. The cause is initialization — `model.py` never defines an init, so `nn.Embedding` keeps PyTorch's default N(0, 1), and since the LM head is weight-tied to that table the output logits start with standard deviation ≈ √d_model instead of ≈ 0.02·√d_model. GPT-2 uses std 0.02 for exactly this reason.
+
+The cost lands unevenly, which is why it matters for the fits. In the 5M-token panel the models do not even reach random-guessing loss until 2–4M tokens in — **roughly half the shortest runs is spent undoing the initialization**, versus a few percent of the 80M-token runs. That inflates loss at low D specifically, which steepens `b_D`. So the steep data exponent has two contributing causes, not one: the constant learning rate and this. Neither is separable from the published numbers without re-running.
 
 ---
 
@@ -222,13 +226,15 @@ A decoder-only transformer in PyTorch, randomly initialized per run — no pretr
 
 × token budgets **5M / 20M / 80M** = 12 runs.
 
-AdamW, lr 3e-4 constant, batch 32 × 256 tokens = 8,192 tokens/step — so the budgets are 610 / 2,441 / 9,766 optimizer steps. Validation loss is mean cross-entropy over 50 held-out batches (~410k tokens).
+AdamW, lr 3e-4 constant, batch 32 × 256 tokens = 8,192 tokens/step — so the budgets are 611 / 2,442 / 9,766 optimizer steps. Validation loss is mean cross-entropy over 50 held-out batches (~410k tokens).
 
 ---
 
 ## Limitations
 
-**Nothing converged, and D is entangled with optimizer progress.** The dominant caveat. At constant LR with no warmup or decay, the 5M-token runs get 610 steps; their losses (6–8 nats against a 9.68 random baseline) are transient, not performance. The D axis therefore partly measures where training was stopped rather than how much data was seen — the main reason `b_D` lands at -0.254 against Kaplan's -0.095. A cosine schedule with warmup, length-matched per run, is the first thing to fix.
+**Weight initialization is left at PyTorch defaults.** `nn.Embedding` defaults to N(0, 1), and with the LM head weight-tied to it, initial logits are ~50× larger than they should be — every run starts 4–10× worse than random guessing and burns a large fraction of the short runs recovering. This inflates loss at low D and is a second, independent contributor to the steep `b_D`, alongside the constant learning rate. Fixing it means GPT-2-style init (std 0.02, with residual projections scaled by 1/√(2·n_layers)) and a re-run.
+
+**Nothing converged, and D is entangled with optimizer progress.** The dominant caveat. At constant LR with no warmup or decay, the 5M-token runs get 611 steps; their losses (6–8 nats against a 9.68 random baseline) are transient, not performance. The D axis therefore partly measures where training was stopped rather than how much data was seen — the main reason `b_D` lands at -0.254 against Kaplan's -0.095. A cosine schedule with warmup, length-matched per run, is the first thing to fix.
 
 **The grid is factorial, not iso-FLOP.** Good for clean marginals in N and D, weak for a compute exponent (R² = 0.66, error bar larger than the estimate). Deriving a trustworthy compute-optimal frontier needs iso-FLOP profiles: fix a budget, sweep the (N, D) split, find the minimum.
 
